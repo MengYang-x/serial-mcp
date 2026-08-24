@@ -1,7 +1,7 @@
 [project]
 name = "serial-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "基于 MCP 协议的本地串口通信服务，内置实时 Web 监控面板"
 readme = "README.md"
 authors = [
     { name = "monyang", email = "mengyang@cvte.com" }
@@ -9,6 +9,8 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "mcp[cli]>=2.0.0",
+    "pyserial>=3.5",
+    "websockets>=16.0",
 ]
 
 [project.scripts]
