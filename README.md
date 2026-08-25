@@ -28,22 +28,25 @@ uv run spes-serial-mcp
 
 ## 客户端配置
 
-在支持 MCP 的客户端（Claude Code、Cursor、Cline 等）的 `.mcp.json` 中添加：
+### 方式一：一键安装（推荐）
 
-```json
-{
-  "mcpServers": {
-    "spes-serial-mcp": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "d:/003.github/AI应用/spes-serial-mcp",
-        "run",
-        "spes-serial-mcp"
-      ]
-    }
-  }
-}
+在终端执行（需已安装 [uv](https://docs.astral.sh/uv/)）：
+
+```bash
+claude mcp add --scope user spes-serial-mcp -- uvx --from spes-serial-mcp spes-serial-mcp
+```
+
+执行后重启 Claude Code 会话生效，可用 `claude mcp list` 验证连接状态。
+
+### 方式二：让 AI 自动添加
+
+把下面的提示词发给 AI，即可自动完成安装配置：
+
+```
+请安装并配置 MCP 串口工具 spes-serial-mcp：
+1. 执行 claude mcp add --scope user spes-serial-mcp -- uvx --from spes-serial-mcp spes-serial-mcp
+2. 执行 claude mcp list 确认该服务状态为 connected
+3. 完成后告诉我：需要重启 Claude Code 会话才能生效
 ```
 
 ## 快速开始
@@ -121,6 +124,7 @@ uv run spes-serial-mcp
   | 系统 | SYS | 连接/断开等系统消息 |
 
 - **TX/RX 计数** — 实时统计累计收发次数
+- **保存LOG** — 一键将当前日志导出为 txt 文件，文件名形如 `serial-log-20260825-153000.txt`
 - **清空缓存** — 一键清空日志显示
 
 ### 手动发送（旁路干预）
