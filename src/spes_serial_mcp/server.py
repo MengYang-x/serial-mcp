@@ -8,6 +8,7 @@ import json
 import pathlib
 import sys
 import time
+import importlib.metadata
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 mcp = MCPServer("SerialPortMCP")
@@ -26,6 +27,12 @@ serial_read_running = False
 # --- 串口连接状态（供浏览器同步） ---
 serial_status = {"connected": False, "port": None, "baudrate": 115200}
 
+# --- 包版本（未安装时回退为 unknown，保证面板仍可用） ---
+try:
+    PACKAGE_VERSION = importlib.metadata.version("spes-serial-mcp")
+except importlib.metadata.PackageNotFoundError:
+    PACKAGE_VERSION = "unknown"
+
 
 class DashboardHandler(BaseHTTPRequestHandler):
     # 强制使用 HTTP/1.0，禁用 keep-alive，避免单线程服务器被空闲连接阻塞
@@ -36,7 +43,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-type", "text/html; charset=utf-8")
         self.end_headers()
         html_path = pathlib.Path(__file__).with_name("dashboard.html")
-        html = html_path.read_text(encoding="utf-8").replace("{WS_PORT}", str(self.server.ws_port))
+        html = html_path.read_text(encoding="utf-8").replace("{WS_PORT}", str(self.server.ws_port)).replace("{VERSION}", PACKAGE_VERSION)
         self.wfile.write(html.encode('utf-8'))
     def log_message(self, format, *args): pass
 
