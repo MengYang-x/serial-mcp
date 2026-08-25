@@ -25,3 +25,5 @@ env/
 
 # pyenv
 .python-version
+
+.claude

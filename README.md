@@ -37,7 +37,7 @@ uv run serial-mcp
       "command": "uv",
       "args": [
         "--directory",
-        "d:/013.github/AI应用/serial-mcp",
+        "d:/003.github/AI应用/serial-mcp",
         "run",
         "serial-mcp"
       ]
