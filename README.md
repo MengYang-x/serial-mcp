@@ -23,7 +23,7 @@
 
 ```bash
 uv sync
-uv run serial-mcp
+uv run spes-serial-mcp
 ```
 
 ## 客户端配置
@@ -33,13 +33,13 @@ uv run serial-mcp
 ```json
 {
   "mcpServers": {
-    "serial-mcp": {
+    "spes-serial-mcp": {
       "command": "uv",
       "args": [
         "--directory",
-        "d:/003.github/AI应用/serial-mcp",
+        "d:/003.github/AI应用/spes-serial-mcp",
         "run",
-        "serial-mcp"
+        "spes-serial-mcp"
       ]
     }
   }

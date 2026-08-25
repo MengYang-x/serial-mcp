@@ -567,7 +567,7 @@
         (() => {
             let theme = 'light';
             try {
-                const t = localStorage.getItem('serial-mcp:theme');
+                const t = localStorage.getItem('spes-serial-mcp:theme');
                 if (t === 'dark' || t === 'light') theme = t;
             } catch (error) {}
             document.documentElement.classList.toggle('theme-dark', theme === 'dark');
@@ -708,7 +708,7 @@
         const themeToggle = document.getElementById('theme-toggle');
 
         // ---- 主题切换(默认浅色,记忆上次选择) ----
-        const THEME_KEY = 'serial-mcp:theme';
+        const THEME_KEY = 'spes-serial-mcp:theme';
 
         function applyTheme(theme) {
             document.documentElement.classList.toggle('theme-dark', theme === 'dark');

@@ -1,12 +1,12 @@
 {
   "mcpServers": {
-    "serial-mcp": {
+    "spes-serial-mcp": {
       "command": "uv",
       "args": [
         "--directory",
-        "d:/003.github/AI应用/serial-mcp",
+        "d:/003.github/AI应用/spes-serial-mcp",
         "run",
-        "serial-mcp"
+        "spes-serial-mcp"
       ]
     }
   }
