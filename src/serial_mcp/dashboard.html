@@ -2,170 +2,727 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>MCP 串口监控与干预控制台</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>串口监视面板</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23818cf8'/%3E%3Crect x='14' y='23' width='36' height='18' rx='9' fill='none' stroke='white' stroke-width='4'/%3E%3Ccircle cx='24' cy='32' r='3.2' fill='white'/%3E%3Ccircle cx='32' cy='32' r='3.2' fill='white'/%3E%3Ccircle cx='40' cy='32' r='3.2' fill='white'/%3E%3C/svg%3E">
     <style>
-        body {
-            background-color: #1e1e1e;
-            color: #d4d4d4;
-            font-family: 'Consolas', 'Monaco', 'Courier New', 'Noto Sans Mono CJK SC', 'Sarasa Mono SC', 'Microsoft YaHei Mono', monospace;
+        :root {
+            color-scheme: light;
+            --bg: #ffffff;
+            --bg-elevated: rgba(255, 255, 255, 0.92);
+            --bg-panel: rgba(255, 255, 255, 0.84);
+            --bg-panel-strong: rgba(255, 255, 255, 0.94);
+            --bg-terminal: #f6f6f7;
+            --border: rgba(60, 60, 67, 0.16);
+            --border-strong: rgba(60, 60, 67, 0.24);
+            --text: #3c3c43;
+            --text-soft: #67676c;
+            --accent: #5672cd;
+            --accent-strong: #3451b2;
+            --accent-soft: rgba(100, 108, 255, 0.14);
+            --signal: #3a5ccc;
+            --warning: #d97706;
+            --danger: #e0575e;
+            --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.07);
+            --scrollbar-thumb: rgba(86, 114, 205, 0.46);
+            --scrollbar-thumb-hover: rgba(52, 81, 178, 0.66);
+            --radius: 14px;
+            --font-ui: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+        }
+
+        :root.theme-dark,
+        body.theme-dark {
+            color-scheme: dark;
+            --bg: #1b1b1f;
+            --bg-elevated: rgba(32, 33, 39, 0.92);
+            --bg-panel: rgba(32, 33, 39, 0.86);
+            --bg-panel-strong: rgba(32, 33, 39, 0.96);
+            --bg-terminal: #161618;
+            --border: rgba(60, 63, 68, 0.32);
+            --border-strong: rgba(60, 63, 68, 0.44);
+            --text: #dfdfd6;
+            --text-soft: #98989f;
+            --accent: #818cf8;
+            --accent-strong: #c7d2fe;
+            --accent-soft: rgba(129, 140, 248, 0.16);
+            --signal: #6366f1;
+            --warning: #ffb14d;
+            --danger: #f87171;
+            --shadow-soft: 0 12px 32px rgba(0, 0, 0, 0.28);
+            --scrollbar-thumb: rgba(129, 140, 248, 0.48);
+            --scrollbar-thumb-hover: rgba(99, 102, 241, 0.7);
+        }
+
+        * { box-sizing: border-box; }
+
+        *::-webkit-scrollbar { width: 10px; height: 10px; }
+        *::-webkit-scrollbar-track,
+        *::-webkit-scrollbar-corner { background: transparent; }
+        *::-webkit-scrollbar-thumb {
+            min-height: 24px;
+            border-radius: 999px;
+            border: 3px solid transparent;
+            background: var(--scrollbar-thumb);
+            background-clip: content-box;
+        }
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--scrollbar-thumb-hover);
+            background-clip: content-box;
+        }
+
+        html, body {
             margin: 0;
-            padding: 10px 12px;
-            display: flex;
-            flex-direction: column;
+            min-height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-ui);
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        button, input, select { font: inherit; color: inherit; }
+        input, .terminal, .terminal * {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+        button { border: none; background: none; cursor: pointer; }
+        .hidden { display: none !important; }
+
+        /* ---------- 顶层布局 ---------- */
+        .app-shell {
             height: 100vh;
-            box-sizing: border-box;
-            font-size: 13px;
+            padding: 0 8px 8px;
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 6px;
         }
-        h2 {
-            color: #569cd6;
-            margin: 0 0 8px 0;
-            font-size: 16px;
-        }
-        /* 串口控制面板 */
-        .serial-panel {
-            display: flex;
+
+        /* ---------- 顶栏 ---------- */
+        .topbar {
+            min-height: 52px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
             align-items: center;
             gap: 8px;
-            margin-bottom: 8px;
-            padding: 6px 8px;
-            background-color: #252526;
-            border: 1px solid #444;
-            border-radius: 4px;
+            padding: 5px 8px;
+            background: var(--bg-elevated);
+            border: 1px solid var(--border);
+            border-radius: 0 0 calc(var(--radius) + 4px) calc(var(--radius) + 4px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
         }
-        .serial-panel label {
-            font-weight: bold;
+
+        .status-pill, .ws-pill {
+            display: inline-grid;
+            grid-template-columns: auto auto;
+            gap: 8px;
+            align-items: center;
+            border-radius: 14px;
+            border: 1px solid var(--border-strong);
+            background:
+                radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.12), transparent 50%),
+                rgba(255, 255, 255, 0.22);
+            transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        body.theme-dark .status-pill, body.theme-dark .ws-pill {
+            background:
+                radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.12), transparent 50%),
+                rgba(15, 24, 32, 0.72);
+        }
+        .status-pill { padding: 6px 12px 6px 10px; cursor: pointer; }
+        .ws-pill { padding: 8px 12px; justify-self: end; }
+        .status-pill:hover, .ws-pill:hover { transform: translateY(-1px); }
+        .status-pill:focus-visible {
+            outline: none;
+            border-color: rgba(86, 114, 205, 0.4);
+            box-shadow: 0 0 0 4px rgba(86, 114, 205, 0.1);
+        }
+
+        .status-pill-copy { display: grid; gap: 2px; min-width: 0; }
+        .status-pill-title {
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            line-height: 1;
             white-space: nowrap;
         }
-        .serial-panel input[type="text"] {
-            flex: 1;
-            padding: 4px 6px;
-            background-color: #1e1e1e;
-            color: #fff;
-            border: 1px solid #3c3c3c;
-            font-family: inherit;
-            font-size: 13px;
-            border-radius: 3px;
+        .status-pill-subtitle {
+            font-size: 10px;
+            color: var(--text-soft);
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .serial-panel input[type="text"]:disabled {
-            background-color: #1e1e1e;
-            color: #858585;
+        .ws-pill-text { font-size: 11px; font-weight: 700; white-space: nowrap; }
+
+        /* ---------- 主题切换 ---------- */
+        .corner-block { justify-self: end; }
+        .theme-toggle {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            border-radius: 10px;
+            border: 1px solid var(--border-strong);
+            background: var(--bg-panel-strong);
         }
-        .serial-panel select {
-            padding: 4px 6px;
-            background-color: #1e1e1e;
-            color: #fff;
-            border: 1px solid #3c3c3c;
-            font-family: inherit;
-            font-size: 13px;
-            border-radius: 3px;
+        .theme-toggle::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            width: 50%;
+            border-radius: 8px;
+            background: var(--accent);
+            transition: transform 0.2s ease;
+            pointer-events: none;
         }
-        .serial-panel select:disabled {
-            color: #858585;
+        .theme-toggle.is-dark::before { transform: translateX(100%); }
+        .theme-opt {
+            position: relative;
+            z-index: 1;
+            padding: 6px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text);
+            transition: color 0.16s ease;
+            white-space: nowrap;
         }
-        .serial-panel button {
-            padding: 4px 14px;
-            background-color: #0e639c;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-            border-radius: 3px;
-            font-size: 13px;
+        .theme-opt.is-active { color: #eef2ff; }
+
+        .status-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            position: relative;
+            flex: 0 0 auto;
         }
-        .serial-panel button:hover {
-            filter: brightness(1.15);
+        .status-dot::after {
+            content: "";
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            background: currentColor;
+            opacity: 0.5;
+            animation: pulse 1.9s infinite ease-out;
         }
-        .status-label {
-            min-width: 180px;
+        .status-dot.connected { color: var(--accent); background: var(--accent); }
+        .status-dot.offline { color: var(--warning); background: var(--warning); }
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            70%, 100% { transform: scale(2.4); opacity: 0; }
         }
-        .status-connected { color: #4ec9b0; }
-        .status-disconnected { color: #f48771; }
-        /* 日志区域 */
-        #log-container {
-            flex: 1;
-            background-color: #000;
-            border: 1px solid #444;
-            padding: 6px 8px;
-            overflow-y: auto;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            font-size: 13px;
-            line-height: 1.35;
+
+        /* ---------- 工作区与面板 ---------- */
+        .workspace {
+            min-height: 0;
+            height: 100%;
+            display: grid;
+            grid-template-columns: 286px minmax(320px, 1fr);
+            gap: 8px;
+            align-items: stretch;
         }
-        .log-entry {
-            margin-bottom: 2px;
-            line-height: 1.35;
+
+        .panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-soft);
+            border-radius: var(--radius);
+            min-height: 0;
+            padding: 14px 16px;
         }
-        .timestamp {
-            color: #858585;
-            font-weight: normal;
+
+        .config-panel { height: fit-content; }
+
+        .panel-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
         }
-        .msg-content {
+
+        .config-head-group {
+            width: 100%;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: end;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .device-meta-stack { display: inline-flex; gap: 10px; justify-content: flex-end; }
+        .device-meta-line {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 4px;
+            min-width: 0;
+            font-size: 9px;
+            line-height: 1;
+            color: var(--text-soft);
+            white-space: nowrap;
+        }
+        .device-meta-line strong {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+        .device-meta-line span {
+            max-width: 96px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        /* ---------- 连接管理 ---------- */
+        .connect-control-box { display: block; width: 100%; min-width: 0; }
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+        .field { display: grid; gap: 8px; min-width: 0; }
+        .field label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-soft);
+        }
+
+        .primary-btn, .secondary-btn, .wide-send-btn {
+            border-radius: 14px;
+            transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+        }
+        .primary-btn:hover, .secondary-btn:hover, .wide-send-btn:hover { transform: translateY(-1px); }
+
+        .primary-btn, .wide-send-btn {
+            background: var(--accent);
+            color: #eef2ff;
+            box-shadow: 0 12px 24px rgba(86, 114, 205, 0.24);
+            font-weight: 800;
+        }
+        .primary-btn {
+            width: 100%;
+            padding: 9px 10px;
+            font-size: 12.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .primary-btn.is-disconnect {
+            background: linear-gradient(135deg, #dc5b52, #b93a32);
+            color: #fff8f7;
+            box-shadow: 0 12px 24px rgba(185, 58, 50, 0.24);
+        }
+
+        .secondary-btn {
+            background: rgba(255, 255, 255, 0.44);
+            border: 1px solid var(--border-strong);
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 10px;
+        }
+        body.theme-dark .secondary-btn {
+            background: rgba(18, 28, 37, 0.92);
+        }
+        .secondary-btn:hover { border-color: rgba(86, 114, 205, 0.5); }
+
+        .field input, .field select {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border-strong);
+            background: var(--bg-panel-strong);
+            color: var(--text);
+            outline: none;
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+        .field input { font-family: var(--font-mono); font-size: 12px; }
+        .field select { font-size: 12px; cursor: pointer; }
+        .field input:focus, .field select:focus {
+            border-color: rgba(86, 114, 205, 0.6);
+            box-shadow: 0 0 0 4px rgba(86, 114, 205, 0.12);
+        }
+        .field input:disabled, .field select:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        /* ---------- 监视器面板 ---------- */
+        .monitor-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .monitor-body {
+            min-height: 0;
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .monitor-toolbar {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+        }
+        .monitor-toolbar-copy {
+            min-width: 0;
+            flex: 1 1 auto;
+            display: flex;
+            align-items: baseline;
+            gap: 12px;
+        }
+        .monitor-toolbar-copy .panel-title { flex: 0 0 auto; white-space: nowrap; }
+        .monitor-live-meta { min-width: 0; flex: 1 1 auto; justify-content: flex-start; gap: 10px; overflow: hidden; }
+
+        .terminal-wrap {
+            position: relative;
+            min-height: 0;
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .terminal {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+            border-radius: 18px;
+            padding: 14px;
+            border: 1px solid var(--border);
+            background: var(--bg-terminal);
+            box-shadow: inset 0 6px 18px rgba(0, 0, 0, 0.06);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .terminal-empty {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            pointer-events: none;
+            color: var(--text-soft);
+            font-size: 12px;
+            letter-spacing: 0.06em;
+        }
+
+        .terminal-jump-btn {
+            position: absolute;
+            right: 14px;
+            bottom: 14px;
+            width: 38px;
+            height: 38px;
+            min-width: 38px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            background: var(--accent);
+            color: #eef2ff;
+            box-shadow: 0 12px 24px rgba(52, 81, 178, 0.22);
+            display: grid;
+            place-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(8px);
+            transition: opacity 0.16s ease, transform 0.16s ease;
+            z-index: 2;
+        }
+        .terminal-jump-btn.visible {
+            opacity: 1;
+            pointer-events: auto;
+            transform: translateY(0);
+        }
+        .terminal-jump-btn svg {
+            width: 16px;
+            height: 16px;
+            display: block;
+            stroke: currentColor;
+        }
+
+        /* 日志行:时间 | 方向 | 来源 | 内容 */
+        .log-line {
+            display: grid;
+            grid-template-columns: auto auto auto minmax(0, 1fr);
+            gap: 10px;
+            align-items: start;
+            padding: 2px 0;
+        }
+        .log-line .stamp {
+            color: var(--text-soft);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .log-line .dir {
+            font-weight: 800;
+            min-width: 28px;
+            user-select: none;
+        }
+        .log-line.rx .dir { color: var(--signal); }
+        .log-line.tx .dir { color: var(--warning); }
+        .log-line.sys .dir { color: var(--accent); }
+        .log-line.error .dir { color: var(--danger); }
+
+        .src-chip {
+            display: inline-flex;
+            align-items: center;
+            margin-top: 2px;
+            padding: 1px 6px;
+            border-radius: 7px;
+            border: 1px solid currentColor;
+            font-family: var(--font-ui);
+            font-size: 11px;
+            font-weight: 800;
+            line-height: 1.15;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .chip-rx { color: var(--signal); background: rgba(99, 102, 241, 0.12); }
+        .chip-ai { color: var(--accent-strong); background: var(--accent-soft); }
+        .chip-manual { color: var(--warning); background: rgba(255, 177, 77, 0.12); }
+        .chip-sys { color: var(--text-soft); background: rgba(152, 152, 159, 0.1); }
+
+        .log-line .payload {
+            min-width: 0;
             white-space: pre-wrap;
             word-break: break-word;
         }
-        .source-LLM { color: #c586c0; font-weight: bold; }
-        .source-HARDWARE { color: #4ec9b0; font-weight: bold; }
-        .source-USER_OVERRIDE { color: #ce9178; font-weight: bold;}
-        .source-SYSTEM { color: #808080; font-style: italic; }
-        .controls { display: flex; gap: 8px; }
-        .controls input[type="text"] {
-            flex: 1;
-            padding: 6px 8px;
-            background-color: #252526;
-            color: #fff;
-            border: 1px solid #3c3c3c;
-            font-family: inherit;
-            font-size: 13px;
-            border-radius: 3px;
+
+        /* ---------- 发送区 ---------- */
+        .send-main {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 132px;
+            gap: 5px;
+            align-items: stretch;
+            flex: 0 0 auto;
         }
-        .controls input[type="text"]:focus { outline: none; border-color: #007acc; }
-        .controls button {
-            padding: 6px 14px;
-            background-color: #0e639c;
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-            border-radius: 3px;
-            font-size: 13px;
+        #cmd-input {
+            width: 100%;
+            min-height: 56px;
+            padding: 9px 11px;
+            border-radius: 16px;
+            border: 1px solid var(--border-strong);
+            background: var(--bg-panel-strong);
+            color: var(--text);
+            outline: none;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            line-height: 1.55;
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
         }
-        .controls button:hover { background-color: #1177bb; }
-        .status { position: absolute; top: 12px; right: 12px; font-size: 12px; }
-        .status.connected { color: #4ec9b0; }
-        .status.disconnected { color: #f48771; }
+        #cmd-input:focus {
+            border-color: rgba(86, 114, 205, 0.6);
+            box-shadow: 0 0 0 4px rgba(86, 114, 205, 0.12);
+        }
+        #cmd-input::placeholder { color: var(--text-soft); }
+        .wide-send-btn {
+            min-height: 56px;
+            padding: 10px 12px;
+            font-size: 14px;
+            letter-spacing: 0.04em;
+            border-radius: 16px;
+        }
+
+        /* ---------- 问题反馈 ---------- */
+        .feedback-link {
+            position: fixed;
+            left: 14px;
+            bottom: 8px;
+            z-index: 10;
+            font-size: 12px;
+            color: var(--text-soft);
+            cursor: text;
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        /* ---------- 窄屏适配 ---------- */
+        @media (max-width: 720px) {
+            .workspace {
+                grid-template-columns: minmax(0, 1fr);
+                overflow: auto;
+            }
+            .monitor-panel { min-height: 320px; }
+        }
     </style>
+    <script>
+        // 尽早应用主题,避免加载时闪烁(默认浅色)
+        (() => {
+            let theme = 'light';
+            try {
+                const t = localStorage.getItem('serial-mcp:theme');
+                if (t === 'dark' || t === 'light') theme = t;
+            } catch (error) {}
+            document.documentElement.classList.toggle('theme-dark', theme === 'dark');
+            window.__initialTheme = theme;
+        })();
+    </script>
 </head>
-<body>
-    <h2>串口监视器</h2>
-    <div id="ws-status" class="status disconnected">WebSocket: 未连接</div>
+<body spellcheck="false">
+    <div class="app-shell">
+        <!-- 顶栏:串口状态胶囊 + WebSocket 状态 -->
+        <header class="topbar">
+            <section class="brand-block">
+                <div id="serial-status-pill" class="status-pill" title="点击连接/断开串口">
+                    <span id="serial-status-dot" class="status-dot offline"></span>
+                    <div class="status-pill-copy">
+                        <span class="status-pill-title">Serial MCP</span>
+                        <span id="serial-status-text" class="status-pill-subtitle">串口离线</span>
+                    </div>
+                </div>
+            </section>
+            <section class="corner-block">
+                <div id="theme-toggle" class="theme-toggle" role="group" aria-label="主题选择">
+                    <button type="button" class="theme-opt" data-theme="light">浅色</button>
+                    <button type="button" class="theme-opt" data-theme="dark">深色</button>
+                </div>
+            </section>
+            <div id="ws-status-pill" class="ws-pill" title="点击重连">
+                <span id="ws-status-dot" class="status-dot offline"></span>
+                <span id="ws-status-text" class="ws-pill-text">WebSocket 未连接</span>
+            </div>
+        </header>
 
-    <!-- 串口控制面板 -->
-    <div class="serial-panel">
-        <label id="serial-status-label" class="status-label status-disconnected">串口: 未连接</label>
-        <input type="text" id="serial-port-input" placeholder="端口，如 COM3" value="COM3">
-        <select id="serial-baud-select">
-            <option value="9600">9600</option>
-            <option value="115200" selected>115200</option>
-            <option value="921600">921600</option>
-        </select>
-        <button id="serial-toggle-btn" onclick="toggleSerial()">连接</button>
+        <main class="workspace">
+            <!-- 连接管理面板 -->
+            <section class="panel config-panel">
+                <div class="panel-head">
+                    <div class="config-head-group">
+                        <div class="panel-title">设备连接管理</div>
+                        <div class="device-meta-stack">
+                            <div class="device-meta-line">
+                                <strong>端口</strong>
+                                <span id="meta-port">-</span>
+                            </div>
+                            <div class="device-meta-line">
+                                <strong>波特率</strong>
+                                <span id="meta-baud">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="connect-control-box">
+                        <button id="connect-btn" class="primary-btn">连接设备 | 当前未连接</button>
+                    </div>
+                </div>
+                <div class="config-grid">
+                    <div class="field">
+                        <label for="serial-port-input">串口端口</label>
+                        <input type="text" id="serial-port-input" placeholder="例如 COM3" value="COM3" spellcheck="false">
+                    </div>
+                    <div class="field">
+                        <label for="serial-baud-select">波特率</label>
+                        <select id="serial-baud-select">
+                            <option value="9600">9600</option>
+                            <option value="19200">19200</option>
+                            <option value="38400">38400</option>
+                            <option value="57600">57600</option>
+                            <option value="115200" selected>115200</option>
+                            <option value="230400">230400</option>
+                            <option value="460800">460800</option>
+                            <option value="921600">921600</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 串口监视器面板 -->
+            <section class="panel monitor-panel">
+                <div class="monitor-toolbar">
+                    <div class="monitor-toolbar-copy">
+                        <div class="panel-title">串口监视器</div>
+                        <div class="device-meta-stack monitor-live-meta">
+                            <div class="device-meta-line">
+                                <strong>TX</strong>
+                                <span id="meta-tx">0</span>
+                            </div>
+                            <div class="device-meta-line">
+                                <strong>RX</strong>
+                                <span id="meta-rx">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="button-row">
+                        <button id="clear-log-btn" class="secondary-btn">清空缓存</button>
+                    </div>
+                </div>
+                <div class="monitor-body">
+                    <div class="terminal-wrap">
+                        <div id="log-container" class="terminal"></div>
+                        <div id="terminal-empty" class="terminal-empty">等待串口数据…</div>
+                        <button id="jump-btn" class="terminal-jump-btn" type="button" title="到底部" aria-label="滚动到底部">
+                            <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="M12 5v12"></path>
+                                <path d="M7 12l5 5 5-5"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="send-main">
+                        <input type="text" id="cmd-input" placeholder="输入指令发送至串口,Enter 发送,↑↓ 切换历史" autocomplete="off" spellcheck="false">
+                        <button id="send-btn" class="wide-send-btn">立即发送</button>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 
-    <div id="log-container"></div>
-    <div class="controls">
-        <input type="text" id="cmd-input" placeholder="输入指令 (↑↓ 切换历史)..." autocomplete="off">
-        <button onclick="sendCommand()">发送 (干预)</button>
-    </div>
+    <div class="feedback-link">Author: mengyang@cvte.com</div>
 
     <script>
         const logContainer = document.getElementById('log-container');
-        const statusEl = document.getElementById('ws-status');
+        const terminalEmpty = document.getElementById('terminal-empty');
+        const jumpBtn = document.getElementById('jump-btn');
         const cmdInput = document.getElementById('cmd-input');
-        const serialStatusLabel = document.getElementById('serial-status-label');
+        const clearBtn = document.getElementById('clear-log-btn');
+        const serialStatusPill = document.getElementById('serial-status-pill');
+        const serialStatusDot = document.getElementById('serial-status-dot');
+        const serialStatusText = document.getElementById('serial-status-text');
+        const wsStatusPill = document.getElementById('ws-status-pill');
+        const wsStatusDot = document.getElementById('ws-status-dot');
+        const wsStatusText = document.getElementById('ws-status-text');
+        const connectBtn = document.getElementById('connect-btn');
         const serialPortInput = document.getElementById('serial-port-input');
         const serialBaudSelect = document.getElementById('serial-baud-select');
-        const serialToggleBtn = document.getElementById('serial-toggle-btn');
+        const metaPort = document.getElementById('meta-port');
+        const metaBaud = document.getElementById('meta-baud');
+        const metaTx = document.getElementById('meta-tx');
+        const metaRx = document.getElementById('meta-rx');
+        const themeToggle = document.getElementById('theme-toggle');
+
+        // ---- 主题切换(默认浅色,记忆上次选择) ----
+        const THEME_KEY = 'serial-mcp:theme';
+
+        function applyTheme(theme) {
+            document.documentElement.classList.toggle('theme-dark', theme === 'dark');
+            document.body.classList.toggle('theme-dark', theme === 'dark');
+            themeToggle.classList.toggle('is-dark', theme === 'dark');
+            themeToggle.querySelectorAll('.theme-opt').forEach((btn) => {
+                btn.classList.toggle('is-active', btn.dataset.theme === theme);
+            });
+            try { localStorage.setItem(THEME_KEY, theme); } catch (error) {}
+        }
+        applyTheme(window.__initialTheme || 'light');
+
+        themeToggle.addEventListener('click', (e) => {
+            const btn = e.target.closest('.theme-opt');
+            if (btn) applyTheme(btn.dataset.theme);
+        });
 
         const wsPort = {WS_PORT};
         const wsUrl = 'ws://' + window.location.hostname + ':' + wsPort;
@@ -178,12 +735,90 @@
 
         // ---- 串口状态 ----
         let serialState = { connected: false, port: null, baudrate: 115200 };
+        let txCount = 0;
+        let rxCount = 0;
 
-        function connect() {
+        const SOURCE_META = {
+            LLM:           { dir: 'TX',  cls: 'tx',    chip: 'AI 发出',    chipCls: 'chip-ai' },
+            HARDWARE:      { dir: 'RX',  cls: 'rx',    chip: '下位机 返回', chipCls: 'chip-rx' },
+            USER_OVERRIDE: { dir: 'TX',  cls: 'tx',    chip: '手动 发送',  chipCls: 'chip-manual' },
+            SYSTEM:        { dir: 'SYS', cls: 'sys',   chip: '系统',       chipCls: 'chip-sys' }
+        };
+
+        function pad2(n) { return String(n).padStart(2, '0'); }
+
+        function fmtStamp() {
+            const d = new Date();
+            return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds())
+                + '.' + Math.floor(d.getMilliseconds() / 100);
+        }
+
+        function setDot(el, connected) {
+            el.classList.toggle('connected', connected);
+            el.classList.toggle('offline', !connected);
+        }
+
+        // ---- 日志 ----
+        function isNearBottom() {
+            return logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 48;
+        }
+
+        function scrollToBottom() {
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function appendLog(source, msg) {
+            const base = SOURCE_META[source] || SOURCE_META.SYSTEM;
+            const meta = Object.assign({}, base);
+            if (source === 'SYSTEM' && /失败|错误/.test(msg || '')) meta.cls = 'error';
+
+            if (source === 'HARDWARE') {
+                rxCount++;
+                metaRx.textContent = rxCount;
+            } else if (source === 'LLM' || source === 'USER_OVERRIDE') {
+                txCount++;
+                metaTx.textContent = txCount;
+            }
+
+            const stick = isNearBottom();
+
+            const line = document.createElement('div');
+            line.className = 'log-line ' + meta.cls;
+
+            const stamp = document.createElement('span');
+            stamp.className = 'stamp';
+            stamp.textContent = '[' + fmtStamp() + ']';
+
+            const dir = document.createElement('span');
+            dir.className = 'dir';
+            dir.textContent = meta.dir;
+
+            const chip = document.createElement('span');
+            chip.className = 'src-chip ' + meta.chipCls;
+            chip.textContent = meta.chip;
+
+            const payload = document.createElement('span');
+            payload.className = 'payload';
+            payload.textContent = (msg || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+            line.append(stamp, dir, chip, payload);
+            logContainer.appendChild(line);
+            terminalEmpty.classList.add('hidden');
+
+            if (stick) {
+                scrollToBottom();
+            } else {
+                jumpBtn.classList.add('visible');
+            }
+        }
+
+        // ---- WebSocket ----
+        function connectWs() {
+            if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
             ws = new WebSocket(wsUrl);
             ws.onopen = () => {
-                statusEl.textContent = 'WebSocket: 已连接';
-                statusEl.className = 'status connected';
+                wsStatusText.textContent = 'WebSocket 已连接';
+                setDot(wsStatusDot, true);
                 appendLog('SYSTEM', '监控面板已连接至 MCP 底层服务。');
             };
             ws.onmessage = (event) => {
@@ -200,42 +835,67 @@
                 }
             };
             ws.onclose = () => {
-                statusEl.textContent = 'WebSocket: 已断开 (重连中...)';
-                statusEl.className = 'status disconnected';
+                wsStatusText.textContent = 'WebSocket 已断开,3 秒后重连';
+                setDot(wsStatusDot, false);
                 // 断线时重置串口状态显示
                 serialState = { connected: false, port: null, baudrate: 115200 };
                 updateSerialUI();
-                setTimeout(connect, 3000);
+                setTimeout(connectWs, 3000);
             };
         }
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        // ---- 串口操作 ----
+        function toggleSerial() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                appendLog('SYSTEM', 'WebSocket 未连接,无法操作串口。');
+                return;
+            }
+            if (serialState.connected) {
+                ws.send(JSON.stringify({ action: 'close' }));
+            } else {
+                const port = serialPortInput.value.trim();
+                const baud = parseInt(serialBaudSelect.value, 10);
+                if (!port) {
+                    appendLog('SYSTEM', '请先填写串口端口。');
+                    return;
+                }
+                ws.send(JSON.stringify({ action: 'connect', payload: { port, baudrate: baud } }));
+            }
         }
 
-        function appendLog(source, msg) {
-            const div = document.createElement('div');
-            div.className = 'log-entry';
-            const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: "numeric", minute: "numeric", second: "numeric" });
-            let sourceLabel = '';
-            switch(source) {
-                case 'LLM': sourceLabel = '[AI Agent 发出]'; break;
-                case 'HARDWARE': sourceLabel = '[下位机 返回]'; break;
-                case 'USER_OVERRIDE': sourceLabel = '[人类 手动发送]'; break;
-                case 'SYSTEM': sourceLabel = '[系统]'; break;
+        function updateSerialUI() {
+            if (serialState.connected) {
+                serialStatusText.textContent = serialState.port + ' · ' + serialState.baudrate;
+                serialStatusPill.title = '点击断开串口';
+                setDot(serialStatusDot, true);
+                connectBtn.textContent = '断开连接 | ' + serialState.port;
+                connectBtn.classList.add('is-disconnect');
+                metaPort.textContent = serialState.port;
+                metaBaud.textContent = serialState.baudrate;
+                serialPortInput.value = serialState.port || '';
+                serialPortInput.disabled = true;
+                serialBaudSelect.value = String(serialState.baudrate || 115200);
+                serialBaudSelect.disabled = true;
+            } else {
+                serialStatusText.textContent = '串口离线';
+                serialStatusPill.title = '点击连接串口';
+                setDot(serialStatusDot, false);
+                connectBtn.textContent = '连接设备 | 当前未连接';
+                connectBtn.classList.remove('is-disconnect');
+                metaPort.textContent = '-';
+                metaBaud.textContent = '-';
+                serialPortInput.disabled = false;
+                serialBaudSelect.disabled = false;
             }
-            const normalizedMsg = (msg || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-            const htmlMsg = escapeHtml(normalizedMsg).replace(/\n/g, '<br>');
-            div.innerHTML = `<span class="timestamp">[${time}]</span> <span class="source-${source}">${sourceLabel}</span> <span class="msg-content">${htmlMsg}</span>`;
-            logContainer.appendChild(div);
-            logContainer.scrollTop = logContainer.scrollHeight;
         }
 
         function sendCommand() {
             const cmd = cmdInput.value.trim();
             if (!cmd) return;
+            if (!serialState.connected) {
+                appendLog('SYSTEM', '串口未连接,无法发送。');
+                return;
+            }
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ action: 'write', payload: cmd }));
                 commandHistory.push(cmd);
@@ -246,41 +906,30 @@
             }
         }
 
-        function toggleSerial() {
-            if (!ws || ws.readyState !== WebSocket.OPEN) return;
-            if (serialState.connected) {
-                ws.send(JSON.stringify({ action: 'close' }));
-            } else {
-                const port = serialPortInput.value.trim();
-                const baud = parseInt(serialBaudSelect.value);
-                if (port) {
-                    ws.send(JSON.stringify({ action: 'connect', payload: { port, baudrate: baud } }));
-                }
-            }
-        }
+        // ---- 事件绑定 ----
+        connectBtn.addEventListener('click', toggleSerial);
+        serialStatusPill.addEventListener('click', toggleSerial);
+        wsStatusPill.addEventListener('click', connectWs);
 
-        function updateSerialUI() {
-            if (serialState.connected) {
-                serialStatusLabel.textContent = `串口: ${serialState.port}`;
-                serialStatusLabel.className = 'status-label status-connected';
-                serialToggleBtn.textContent = '断开';
-                serialToggleBtn.style.backgroundColor = '#c75450';
-                serialPortInput.value = serialState.port || '';
-                serialPortInput.disabled = true;
-                serialBaudSelect.value = String(serialState.baudrate || 115200);
-                serialBaudSelect.disabled = true;
-            } else {
-                serialStatusLabel.textContent = '串口: 未连接';
-                serialStatusLabel.className = 'status-label status-disconnected';
-                serialToggleBtn.textContent = '连接';
-                serialToggleBtn.style.backgroundColor = '#0e639c';
-                serialPortInput.disabled = false;
-                serialBaudSelect.disabled = false;
-            }
-        }
+        document.getElementById('send-btn').addEventListener('click', sendCommand);
+
+        clearBtn.addEventListener('click', () => {
+            logContainer.innerHTML = '';
+            terminalEmpty.classList.remove('hidden');
+            jumpBtn.classList.remove('visible');
+        });
+
+        jumpBtn.addEventListener('click', () => {
+            scrollToBottom();
+            jumpBtn.classList.remove('visible');
+        });
+
+        logContainer.addEventListener('scroll', () => {
+            if (isNearBottom()) jumpBtn.classList.remove('visible');
+        });
 
         cmdInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.isComposing) {
                 sendCommand();
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -304,7 +953,7 @@
             }
         });
 
-        connect();
+        connectWs();
     </script>
 </body>
 </html>
