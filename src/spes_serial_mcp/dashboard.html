@@ -341,6 +341,50 @@
         }
         .secondary-btn:hover { border-color: rgba(86, 114, 205, 0.5); }
 
+        /* 保存/清空按钮的专业配色 */
+        #save-log-btn {
+            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            border-color: rgba(16, 185, 129, 0.45);
+            color: #047857;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.14);
+        }
+        #save-log-btn:hover {
+            background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+            border-color: rgba(16, 185, 129, 0.65);
+            box-shadow: 0 6px 16px rgba(16, 185, 129, 0.2);
+        }
+        #clear-log-btn {
+            background: linear-gradient(135deg, #fef2f2, #fde8e8);
+            border-color: rgba(224, 87, 94, 0.4);
+            color: #c0353c;
+            box-shadow: 0 4px 12px rgba(224, 87, 94, 0.12);
+        }
+        #clear-log-btn:hover {
+            background: linear-gradient(135deg, #fde8e8, #fbd5d5);
+            border-color: rgba(224, 87, 94, 0.6);
+            box-shadow: 0 6px 16px rgba(224, 87, 94, 0.18);
+        }
+        body.theme-dark #save-log-btn {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.08));
+            border-color: rgba(52, 211, 153, 0.4);
+            color: #34d399;
+            box-shadow: none;
+        }
+        body.theme-dark #save-log-btn:hover {
+            background: rgba(16, 185, 129, 0.3);
+            border-color: rgba(52, 211, 153, 0.6);
+        }
+        body.theme-dark #clear-log-btn {
+            background: linear-gradient(135deg, rgba(224, 87, 94, 0.2), rgba(224, 87, 94, 0.08));
+            border-color: rgba(248, 113, 113, 0.4);
+            color: #f87171;
+            box-shadow: none;
+        }
+        body.theme-dark #clear-log-btn:hover {
+            background: rgba(224, 87, 94, 0.3);
+            border-color: rgba(248, 113, 113, 0.6);
+        }
+
         .field input, .field select {
             width: 100%;
             padding: 8px 10px;
@@ -382,6 +426,7 @@
             gap: 12px;
             align-items: center;
         }
+        .button-row { display: inline-flex; gap: 8px; }
         .monitor-toolbar-copy {
             min-width: 0;
             flex: 1 1 auto;
@@ -661,6 +706,7 @@
                         </div>
                     </div>
                     <div class="button-row">
+                        <button id="save-log-btn" class="secondary-btn">保存LOG</button>
                         <button id="clear-log-btn" class="secondary-btn">清空缓存</button>
                     </div>
                 </div>
@@ -692,6 +738,7 @@
         const jumpBtn = document.getElementById('jump-btn');
         const cmdInput = document.getElementById('cmd-input');
         const clearBtn = document.getElementById('clear-log-btn');
+        const saveLogBtn = document.getElementById('save-log-btn');
         const serialStatusPill = document.getElementById('serial-status-pill');
         const serialStatusDot = document.getElementById('serial-status-dot');
         const serialStatusText = document.getElementById('serial-status-text');
@@ -753,6 +800,12 @@
             const d = new Date();
             return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds())
                 + '.' + Math.floor(d.getMilliseconds() / 100);
+        }
+
+        function fmtFileStamp() {
+            const d = new Date();
+            return d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate())
+                + '-' + pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds());
         }
 
         function setDot(el, connected) {
@@ -961,6 +1014,29 @@
         wsStatusPill.addEventListener('click', connectWs);
 
         document.getElementById('send-btn').addEventListener('click', sendCommand);
+
+        saveLogBtn.addEventListener('click', () => {
+            const lines = Array.from(logContainer.querySelectorAll('.log-line')).map((line) => {
+                const stamp = line.querySelector('.stamp').textContent;
+                const dir = line.querySelector('.dir').textContent;
+                const chip = line.querySelector('.src-chip').textContent;
+                const payload = line.querySelector('.payload').textContent;
+                return stamp + ' ' + dir + ' [' + chip + '] ' + payload;
+            });
+            if (lines.length === 0) {
+                appendLog('SYSTEM', '暂无日志可保存。');
+                return;
+            }
+            const blob = new Blob([lines.join('\r\n') + '\r\n'], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'serial-log-' + fmtFileStamp() + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
 
         clearBtn.addEventListener('click', () => {
             logContainer.innerHTML = '';
