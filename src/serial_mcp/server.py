@@ -135,6 +135,13 @@ async def ws_handler(websocket):
                 baud = payload.get("baudrate", 115200)
                 if port:
                     connect_port(port, baud)
+            elif action == "list_ports":
+                try:
+                    ports = [{"device": p.device, "description": p.description}
+                             for p in serial.tools.list_ports.comports()]
+                    await websocket.send(json.dumps({"type": "ports", "ports": ports}))
+                except Exception:
+                    pass
             elif action == "close":
                 close_port()
             elif action == "get_status":

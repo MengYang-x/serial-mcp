@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>串口监视面板</title>
+    <title>Serial MCP</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23818cf8'/%3E%3Crect x='14' y='23' width='36' height='18' rx='9' fill='none' stroke='white' stroke-width='4'/%3E%3Ccircle cx='24' cy='32' r='3.2' fill='white'/%3E%3Ccircle cx='32' cy='32' r='3.2' fill='white'/%3E%3Ccircle cx='40' cy='32' r='3.2' fill='white'/%3E%3C/svg%3E">
     <style>
         :root {
@@ -624,7 +624,9 @@
                 <div class="config-grid">
                     <div class="field">
                         <label for="serial-port-input">串口端口</label>
-                        <input type="text" id="serial-port-input" placeholder="例如 COM3" value="COM3" spellcheck="false">
+                        <select id="serial-port-input">
+                            <option value="">请选择串口</option>
+                        </select>
                     </div>
                     <div class="field">
                         <label for="serial-baud-select">波特率</label>
@@ -820,6 +822,7 @@
                 wsStatusText.textContent = 'WebSocket 已连接';
                 setDot(wsStatusDot, true);
                 appendLog('SYSTEM', '监控面板已连接至 MCP 底层服务。');
+                requestPorts();
             };
             ws.onmessage = (event) => {
                 const data = JSON.parse(event.data);
@@ -830,6 +833,8 @@
                         baudrate: data.baudrate
                     };
                     updateSerialUI();
+                } else if (data.type === 'ports') {
+                    renderPorts(data.ports || []);
                 } else {
                     appendLog(data.source, data.msg);
                 }
@@ -844,6 +849,50 @@
             };
         }
 
+        // ---- 串口端口下拉 ----
+        function requestPorts() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ action: 'list_ports' }));
+            }
+        }
+
+        function setSelectValue(select, value) {
+            if (value && !Array.from(select.options).some((o) => o.value === value)) {
+                const opt = document.createElement('option');
+                opt.value = value;
+                opt.textContent = value;
+                select.appendChild(opt);
+            }
+            select.value = value;
+        }
+
+        function renderPorts(ports) {
+            // 已连接或已选中的端口即使不在扫描结果中也要保留
+            const keep = serialPortInput.disabled ? (serialState.port || '') : serialPortInput.value;
+            const items = ports.map((p) => ({
+                value: p.device,
+                label: p.device + (p.description ? ' - ' + p.description : '')
+            }));
+            if (keep && !items.some((p) => p.value === keep)) items.push({ value: keep, label: keep });
+            const signature = JSON.stringify(items) + '|' + keep;
+            if (serialPortInput.dataset.portsSig === signature) return; // 列表无变化时不重绘,避免关闭下拉弹层
+            serialPortInput.dataset.portsSig = signature;
+            serialPortInput.innerHTML = '';
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.textContent = items.length ? '请选择串口' : '未发现串口';
+            serialPortInput.appendChild(emptyOpt);
+            for (const p of items) {
+                const opt = document.createElement('option');
+                opt.value = p.value;
+                opt.textContent = p.label;
+                serialPortInput.appendChild(opt);
+            }
+            if (keep) setSelectValue(serialPortInput, keep);
+        }
+
+        serialPortInput.addEventListener('click', requestPorts);
+
         // ---- 串口操作 ----
         function toggleSerial() {
             if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -856,7 +905,7 @@
                 const port = serialPortInput.value.trim();
                 const baud = parseInt(serialBaudSelect.value, 10);
                 if (!port) {
-                    appendLog('SYSTEM', '请先填写串口端口。');
+                    appendLog('SYSTEM', '请先选择串口端口。');
                     return;
                 }
                 ws.send(JSON.stringify({ action: 'connect', payload: { port, baudrate: baud } }));
@@ -872,7 +921,7 @@
                 connectBtn.classList.add('is-disconnect');
                 metaPort.textContent = serialState.port;
                 metaBaud.textContent = serialState.baudrate;
-                serialPortInput.value = serialState.port || '';
+                setSelectValue(serialPortInput, serialState.port || '');
                 serialPortInput.disabled = true;
                 serialBaudSelect.value = String(serialState.baudrate || 115200);
                 serialBaudSelect.disabled = true;
