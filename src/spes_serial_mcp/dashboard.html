@@ -403,6 +403,47 @@
         }
         .field input:disabled, .field select:disabled { opacity: 0.55; cursor: not-allowed; }
 
+        /* ---------- 显示选项开关 ---------- */
+        .opt-toggles {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            grid-column: 1 / -1;
+        }
+        .opt-toggle-row {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 8px;
+            width: 100%;
+        }
+        .opt-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border-strong);
+            background: rgba(255, 255, 255, 0.44);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--text-soft);
+            text-transform: uppercase;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: border-color 0.16s ease;
+        }
+        body.theme-dark .opt-toggle {
+            background: rgba(18, 28, 37, 0.92);
+        }
+        .opt-toggle:hover { border-color: rgba(86, 114, 205, 0.5); }
+        .opt-toggle input[type="checkbox"] {
+            accent-color: var(--accent);
+            width: 13px;
+            height: 13px;
+            cursor: pointer;
+        }
+
         /* ---------- 监视器面板 ---------- */
         .monitor-panel {
             display: flex;
@@ -514,6 +555,9 @@
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
             user-select: none;
+        }
+        .log-line.no-stamp {
+            grid-template-columns: auto auto minmax(0, 1fr);
         }
         .log-line .dir {
             font-weight: 800;
@@ -686,6 +730,44 @@
                             <option value="921600">921600</option>
                         </select>
                     </div>
+                    <div class="field">
+                        <label for="serial-bytesize-select">数据位</label>
+                        <select id="serial-bytesize-select">
+                            <option value="8" selected>8</option>
+                            <option value="7">7</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="serial-stopbits-select">停止位</label>
+                        <select id="serial-stopbits-select">
+                            <option value="1" selected>1</option>
+                            <option value="2">2</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="serial-parity-select">校验位</label>
+                        <select id="serial-parity-select">
+                            <option value="none" selected>无</option>
+                            <option value="even">偶校验</option>
+                            <option value="odd">奇校验</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="serial-encoding-select">字符编码</label>
+                        <select id="serial-encoding-select">
+                            <option value="utf-8" selected>UTF-8</option>
+                            <option value="ascii">ASCII</option>
+                            <option value="latin1">Latin-1</option>
+                            <option value="utf-16le">UTF-16LE</option>
+                        </select>
+                    </div>
+                    <div class="opt-toggles">
+                        <div class="opt-toggle-row">
+                            <label class="opt-toggle"><input type="checkbox" id="hex-rx-toggle">十六进制接收</label>
+                            <label class="opt-toggle"><input type="checkbox" id="hex-send-toggle">十六进制发送</label>
+                        </div>
+                        <label class="opt-toggle"><input type="checkbox" id="show-time-toggle" checked>显示时间</label>
+                    </div>
                 </div>
             </section>
 
@@ -748,6 +830,13 @@
         const connectBtn = document.getElementById('connect-btn');
         const serialPortInput = document.getElementById('serial-port-input');
         const serialBaudSelect = document.getElementById('serial-baud-select');
+        const serialBytesizeSelect = document.getElementById('serial-bytesize-select');
+        const serialStopBitsSelect = document.getElementById('serial-stopbits-select');
+        const serialParitySelect = document.getElementById('serial-parity-select');
+        const serialEncodingSelect = document.getElementById('serial-encoding-select');
+        const hexRxToggle = document.getElementById('hex-rx-toggle');
+        const hexSendToggle = document.getElementById('hex-send-toggle');
+        const showTimeToggle = document.getElementById('show-time-toggle');
         const metaPort = document.getElementById('meta-port');
         const metaBaud = document.getElementById('meta-baud');
         const metaTx = document.getElementById('meta-tx');
@@ -783,7 +872,7 @@
         let draftInput = '';
 
         // ---- 串口状态 ----
-        let serialState = { connected: false, port: null, baudrate: 115200 };
+        let serialState = { connected: false, port: null, baudrate: 115200, stopbits: 1, parity: 'none', bytesize: 8, encoding: 'utf-8' };
         let txCount = 0;
         let rxCount = 0;
 
@@ -822,7 +911,7 @@
             logContainer.scrollTop = logContainer.scrollHeight;
         }
 
-        function appendLog(source, msg) {
+        function appendLog(source, msg, hexStr) {
             const base = SOURCE_META[source] || SOURCE_META.SYSTEM;
             const meta = Object.assign({}, base);
             if (source === 'SYSTEM' && /失败|错误/.test(msg || '')) meta.cls = 'error';
@@ -835,14 +924,26 @@
                 metaTx.textContent = txCount;
             }
 
+            // 十六进制显示:接收数据按"十六进制接收"开关,手动发送回显按"十六进制发送"开关
+            let display = (msg || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            if (hexStr && ((source === 'HARDWARE' && hexRxToggle.checked)
+                    || (source === 'USER_OVERRIDE' && hexSendToggle.checked))) {
+                display = hexStr;
+            }
+            if (!display) return; // 纯二进制数据且未开启十六进制接收时,无内容可显示
+
             const stick = isNearBottom();
+            const showStamp = showTimeToggle.checked;
 
             const line = document.createElement('div');
-            line.className = 'log-line ' + meta.cls;
+            line.className = 'log-line ' + meta.cls + (showStamp ? '' : ' no-stamp');
 
-            const stamp = document.createElement('span');
-            stamp.className = 'stamp';
-            stamp.textContent = '[' + fmtStamp() + ']';
+            if (showStamp) {
+                const stamp = document.createElement('span');
+                stamp.className = 'stamp';
+                stamp.textContent = '[' + fmtStamp() + ']';
+                line.appendChild(stamp);
+            }
 
             const dir = document.createElement('span');
             dir.className = 'dir';
@@ -854,9 +955,9 @@
 
             const payload = document.createElement('span');
             payload.className = 'payload';
-            payload.textContent = (msg || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            payload.textContent = display;
 
-            line.append(stamp, dir, chip, payload);
+            line.append(dir, chip, payload);
             logContainer.appendChild(line);
             terminalEmpty.classList.add('hidden');
 
@@ -883,20 +984,24 @@
                     serialState = {
                         connected: data.connected,
                         port: data.port,
-                        baudrate: data.baudrate
+                        baudrate: data.baudrate,
+                        stopbits: data.stopbits,
+                        parity: data.parity,
+                        bytesize: data.bytesize,
+                        encoding: data.encoding
                     };
                     updateSerialUI();
                 } else if (data.type === 'ports') {
                     renderPorts(data.ports || []);
                 } else {
-                    appendLog(data.source, data.msg);
+                    appendLog(data.source, data.msg, data.hex);
                 }
             };
             ws.onclose = () => {
                 wsStatusText.textContent = 'WebSocket 已断开,3 秒后重连';
                 setDot(wsStatusDot, false);
                 // 断线时重置串口状态显示
-                serialState = { connected: false, port: null, baudrate: 115200 };
+                serialState = { connected: false, port: null, baudrate: 115200, stopbits: 1, parity: 'none', bytesize: 8, encoding: 'utf-8' };
                 updateSerialUI();
                 setTimeout(connectWs, 3000);
             };
@@ -957,11 +1062,15 @@
             } else {
                 const port = serialPortInput.value.trim();
                 const baud = parseInt(serialBaudSelect.value, 10);
+                const stopbits = parseInt(serialStopBitsSelect.value, 10);
+                const parity = serialParitySelect.value;
+                const bytesize = parseInt(serialBytesizeSelect.value, 10);
+                const encoding = serialEncodingSelect.value;
                 if (!port) {
                     appendLog('SYSTEM', '请先选择串口端口。');
                     return;
                 }
-                ws.send(JSON.stringify({ action: 'connect', payload: { port, baudrate: baud } }));
+                ws.send(JSON.stringify({ action: 'connect', payload: { port, baudrate: baud, stopbits, parity, bytesize, encoding } }));
             }
         }
 
@@ -978,6 +1087,14 @@
                 serialPortInput.disabled = true;
                 serialBaudSelect.value = String(serialState.baudrate || 115200);
                 serialBaudSelect.disabled = true;
+                setSelectValue(serialBytesizeSelect, String(serialState.bytesize || 8));
+                serialBytesizeSelect.disabled = true;
+                setSelectValue(serialStopBitsSelect, String(serialState.stopbits || 1));
+                serialStopBitsSelect.disabled = true;
+                setSelectValue(serialParitySelect, serialState.parity || 'none');
+                serialParitySelect.disabled = true;
+                setSelectValue(serialEncodingSelect, serialState.encoding || 'utf-8');
+                serialEncodingSelect.disabled = true;
             } else {
                 serialStatusText.textContent = '串口离线';
                 serialStatusPill.title = '点击连接串口';
@@ -988,6 +1105,10 @@
                 metaBaud.textContent = '-';
                 serialPortInput.disabled = false;
                 serialBaudSelect.disabled = false;
+                serialBytesizeSelect.disabled = false;
+                serialStopBitsSelect.disabled = false;
+                serialParitySelect.disabled = false;
+                serialEncodingSelect.disabled = false;
             }
         }
 
@@ -998,17 +1119,67 @@
                 appendLog('SYSTEM', '串口未连接,无法发送。');
                 return;
             }
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ action: 'write', payload: cmd }));
-                commandHistory.push(cmd);
-                if (commandHistory.length > 50) commandHistory.shift();
-                historyIndex = -1;
-                draftInput = '';
-                cmdInput.value = '';
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+            let payload = cmd;
+            let mode = 'ascii';
+            if (hexSendToggle.checked) {
+                try {
+                    const bytes = parseHexString(cmd);
+                    if (bytes.length === 0) throw new Error('未解析到任何 HEX 字节');
+                    payload = Array.from(bytes)
+                        .map((b) => b.toString(16).padStart(2, '0').toUpperCase())
+                        .join(' ');
+                    mode = 'hex';
+                } catch (error) {
+                    appendLog('SYSTEM', 'HEX 发送失败: ' + error.message);
+                    return;
+                }
             }
+
+            ws.send(JSON.stringify({ action: 'write', payload, mode }));
+            commandHistory.push(cmd);
+            if (commandHistory.length > 50) commandHistory.shift();
+            historyIndex = -1;
+            draftInput = '';
+            cmdInput.value = '';
+        }
+
+        // ---- HEX 解析(支持空格/逗号/0x 分隔,参考 SerialWeb 实现) ----
+        function parseHexString(input) {
+            const normalized = String(input || '')
+                .replace(/0x/gi, ' ')
+                .replace(/[^0-9a-fA-F]/g, ' ')
+                .trim();
+            if (!normalized) return new Uint8Array();
+            const parts = normalized.split(/\s+/).filter(Boolean);
+            const values = [];
+            for (const part of parts) {
+                if (part.length > 2) {
+                    for (let i = 0; i < part.length; i += 2) {
+                        const piece = part.slice(i, i + 2);
+                        if (!/^[0-9a-fA-F]{2}$/.test(piece)) {
+                            throw new Error('非法 HEX 字节: ' + piece);
+                        }
+                        values.push(parseInt(piece, 16));
+                    }
+                } else {
+                    if (!/^[0-9a-fA-F]{1,2}$/.test(part)) {
+                        throw new Error('非法 HEX 字节: ' + part);
+                    }
+                    values.push(parseInt(part, 16));
+                }
+            }
+            return Uint8Array.from(values);
         }
 
         // ---- 事件绑定 ----
+        hexSendToggle.addEventListener('change', () => {
+            cmdInput.placeholder = hexSendToggle.checked
+                ? '输入 HEX 发送至串口(如 01 03 0A 0B),Enter 发送,↑↓ 切换历史'
+                : '输入指令发送至串口,Enter 发送,↑↓ 切换历史';
+        });
+
         connectBtn.addEventListener('click', toggleSerial);
         serialStatusPill.addEventListener('click', toggleSerial);
         wsStatusPill.addEventListener('click', connectWs);
@@ -1017,11 +1188,12 @@
 
         saveLogBtn.addEventListener('click', () => {
             const lines = Array.from(logContainer.querySelectorAll('.log-line')).map((line) => {
-                const stamp = line.querySelector('.stamp').textContent;
+                const stampEl = line.querySelector('.stamp');
+                const stamp = stampEl ? stampEl.textContent : '';
                 const dir = line.querySelector('.dir').textContent;
                 const chip = line.querySelector('.src-chip').textContent;
                 const payload = line.querySelector('.payload').textContent;
-                return stamp + ' ' + dir + ' [' + chip + '] ' + payload;
+                return (stamp ? stamp + ' ' : '') + dir + ' [' + chip + '] ' + payload;
             });
             if (lines.length === 0) {
                 appendLog('SYSTEM', '暂无日志可保存。');
