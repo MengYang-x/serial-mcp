@@ -10,7 +10,7 @@ import sys
 import codecs
 import time
 import importlib.metadata
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 mcp = MCPServer("SerialPortMCP")
 
@@ -36,28 +36,28 @@ serial_encoding = "utf-8"
 PARITY_MAP = {"none": serial.PARITY_NONE, "even": serial.PARITY_EVEN, "odd": serial.PARITY_ODD}
 STOPBITS_MAP = {1: serial.STOPBITS_ONE, 1.5: serial.STOPBITS_ONE_POINT_FIVE, 2: serial.STOPBITS_TWO}
 
-# --- 包版本（未安装时回退为 unknown，保证面板仍可用） ---
+# --- 包版本（未安装或版本冲突返回 None 时回退为 unknown，保证面板仍可用） ---
 try:
-    PACKAGE_VERSION = importlib.metadata.version("spes-serial-mcp")
+    PACKAGE_VERSION = importlib.metadata.version("spes-serial-mcp") or "unknown"
 except importlib.metadata.PackageNotFoundError:
     PACKAGE_VERSION = "unknown"
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
-    # 强制使用 HTTP/1.0，禁用 keep-alive，避免单线程服务器被空闲连接阻塞
-    protocol_version = 'HTTP/1.0'
-
     def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html; charset=utf-8")
-        self.end_headers()
         html_path = pathlib.Path(__file__).with_name("dashboard.html")
         html = html_path.read_text(encoding="utf-8").replace("{WS_PORT}", str(self.server.ws_port)).replace("{VERSION}", PACKAGE_VERSION)
-        self.wfile.write(html.encode('utf-8'))
+        data = html.encode('utf-8')
+        self.send_response(200)
+        self.send_header("Content-type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
     def log_message(self, format, *args): pass
 
 def run_http_server(http_port, ws_port):
-    server = HTTPServer(('0.0.0.0', http_port), DashboardHandler)
+    # 多线程服务器:单个卡住的连接不会阻塞其他请求
+    server = ThreadingHTTPServer(('0.0.0.0', http_port), DashboardHandler)
     server.ws_port = ws_port
     server.serve_forever()
 
